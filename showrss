@@ -1,21 +1,27 @@
 #!/usr/bin/env python
 
-import subprocess
-import ConfigParser
-import md5
-import syslog
+import hashlib
 import os.path
+import subprocess
+import syslog
+from configparser import ConfigParser
 
 import feedparser
 
+
 def log(level, message, console=True):
     if console:
-        print message.encode('ascii', 'ignore')
-    syslog.syslog(level, message.encode('ascii', 'ignore'))
+        print(message)
+    syslog.syslog(level, message)
+
+
+import pudb
+
+pudb.set_trace()
 
 # Settings.
 config_file = os.path.expanduser("~/.showrss")
-config = ConfigParser.ConfigParser()
+config = ConfigParser()
 config.read(config_file)
 user_id = config.get("default", "user_id")
 command = config.get("default", "command").split(" ")
@@ -32,21 +38,27 @@ try:
 except:
     pass
 if not quality in ["default", "standard", "high", "all"]:
-    exit("Unknown quality setting '%s'.\nMust be one of 'default', 'standard', 'high' or 'all'." % quality)
+    exit(
+        "Unknown quality setting '%s'.\nMust be one of 'default', 'standard', 'high' or 'all'."
+        % quality
+    )
 
 # Logging.
 log(syslog.LOG_INFO, "Checking for new shows", False)
 
 # Load the cache.
 cachefile = os.path.expanduser("~/.showrss_cache")
-cache = ConfigParser.ConfigParser()
+cache = ConfigParser()
 cache.read(cachefile)
 
 # Convert the quality setting to the correct parameter.
-hd = { "default": "null", "standard": "sd", "high": "hd", "all": "any" }[quality]
+hd = {"default": "null", "standard": "sd", "high": "hd", "all": "any"}[quality]
 
 # Generate the URL.
-url = "http://showrss.info/user/%s.rss?magnets=true&namespaces=true&name=clean&quality=%s&re=null" % (user_id, hd)
+url = (
+    "http://showrss.info/user/%s.rss?magnets=true&namespaces=true&name=clean&quality=%s&re=null"
+    % (user_id, hd)
+)
 
 # Fetch the feed.
 feed = feedparser.parse(url)
@@ -56,26 +68,26 @@ try:
     cache.add_section("entries")
 except:
     pass
-    
+
 shows = []
 
-for item in feed['items']:
+for item in feed["items"]:
 
-    title = item['title']
-    identifier = item['id']
-    key = md5.new(identifier).hexdigest()
-    torrent = item['links'][0]['href']
-    
+    title = item["title"]
+    identifier = item["id"]
+    key = hashlib.new("md5", identifier.encode()).hexdigest()
+    torrent = item["links"][0]["href"]
+
     try:
         cache.get("entries", key)
     except:
         log(syslog.LOG_INFO, "Downloading '%s'..." % title)
-        if (notifier):
-            subprocess.check_call(notifier + [title.encode('ascii', 'ignore')])
+        if notifier:
+            subprocess.check_call(notifier + [title.encode("ascii", "ignore")])
         try:
             cache.set("entries", key, "1")
             subprocess.check_call(command + [torrent])
-            with open(cachefile, 'w+') as outputfile:
+            with open(cachefile, "w+") as outputfile:
                 cache.write(outputfile)
                 outputfile.close()
                 shows.append(title)
